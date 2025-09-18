@@ -1,5 +1,9 @@
 [package]
 name = "marukov"
+description = "a simple markov chain text generator"
+homepage = "https://github.com/xjunko/marukov"
+repository = "https://github.com/xjunko/marukov"
+readme = "README.md"
 license = "MIT"
 authors = ["xjunko <phony@kafu.ovh>"]
 version = "0.0.1"
