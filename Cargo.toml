@@ -1,5 +1,5 @@
 [package]
-name = "markov-text"
+name = "marukov"
 license = "MIT"
 authors = ["xjunko <phony@kafu.ovh>"]
 version = "0.0.1"
