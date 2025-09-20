@@ -163,7 +163,6 @@ where
             state.remove(0);
             state.push(next_word);
         }
-        println!("Generated state: {:?}", result);
         result
     }
 }
