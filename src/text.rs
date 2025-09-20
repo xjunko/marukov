@@ -1,4 +1,5 @@
 use crate::chain::Chain;
+use crate::vocab::Vocab;
 use regex::Regex;
 
 const MOR: f32 = 0.7; // max overlap ratio
@@ -29,19 +30,22 @@ impl Default for TextOptions {
 #[derive(Debug)]
 pub struct Text {
     reject: Option<Regex>,
-    parsed_sentences: Vec<Vec<String>>,
+    parsed_sentences: Vec<Vec<u32>>,
     rejoined_text: String,
-    chain: Chain<String>,
+    chain: Chain<u32>,
+    tokenizer: Vocab,
 }
 
 impl Text {
     /// Creates a default Text instance.
     fn default() -> Self {
+        let mut tokenizer = Vocab::new();
         Self {
             reject: None,
             parsed_sentences: Vec::new(),
             rejoined_text: String::new(),
-            chain: Chain::default(BEGIN.to_string(), END.to_string()),
+            chain: Chain::default(tokenizer.get_or_insert(BEGIN), tokenizer.get_or_insert(END)),
+            tokenizer,
         }
     }
 
@@ -79,11 +83,29 @@ impl Text {
     }
 
     /// Parses the input data into sentences.
-    fn parse(&self, data: String) -> Vec<Vec<String>> {
-        data.split("\n")
+    fn parse(&mut self, data: String) -> (Vec<Vec<u32>>, String) {
+        let sentences: Vec<&str> = data
+            .split("\n")
             .filter(|s| self.sentence_input(s))
-            .map(|s| s.split_whitespace().map(|w| w.to_string()).collect())
-            .collect()
+            .collect();
+
+        let rejoined = sentences
+            .iter()
+            .map(|s| *s)
+            .collect::<Vec<&str>>()
+            .join(" ");
+
+        (
+            sentences
+                .into_iter()
+                .map(|s| {
+                    s.split_whitespace()
+                        .map(|w| self.tokenizer.get_or_insert(w))
+                        .collect()
+                })
+                .collect(),
+            rejoined,
+        )
     }
 }
 
@@ -97,14 +119,12 @@ impl Text {
     pub fn new(data: String) -> Self {
         let mut text = Text::default();
         text.reject = Regex::new(&format!(r"(^')|('$)|\s'|'\s|[\{}(\(\)\[\])]", '"')).ok();
-        text.parsed_sentences = text.parse(data);
-        text.rejoined_text = text
-            .parsed_sentences
-            .iter()
-            .map(|s| s.join(" "))
-            .collect::<Vec<String>>()
-            .join(" ");
-        text.chain = Chain::new(&text.parsed_sentences, BEGIN.to_string(), END.to_string());
+        (text.parsed_sentences, text.rejoined_text) = text.parse(data);
+        text.chain = Chain::new(
+            &text.parsed_sentences,
+            text.tokenizer.get_or_insert(BEGIN),
+            text.tokenizer.get_or_insert(END),
+        );
 
         text
     }
@@ -117,11 +137,17 @@ impl Text {
     /// A string containing the generated text.
     pub fn generate(&self, options: TextOptions) -> String {
         for _ in 0..options.tries {
-            let words: Vec<String> = self.chain.generate(None);
-            if words.len() > options.max_words as usize || words.len() < options.min_words as usize
+            let tokens: Vec<u32> = self.chain.generate(None);
+            if tokens.len() > options.max_words as usize
+                || tokens.len() < options.min_words as usize
             {
                 continue;
             }
+            let words = tokens
+                .iter()
+                .map(|&id| self.tokenizer.id_to_word[id as usize].clone())
+                .collect::<Vec<String>>();
+
             if self.verify(&words, MOR, MOT) {
                 return words.join(" ");
             }

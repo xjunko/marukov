@@ -13,7 +13,7 @@ type Model<T> = HashMap<State<T>, Weight<T>>;
 #[derive(Debug)]
 pub struct Chain<T>
 where
-    T: Eq + Hash + Clone,
+    T: Eq + Hash + Clone + std::fmt::Debug,
 {
     model: Model<T>,
     token_begin: T,
@@ -24,7 +24,7 @@ where
 
 impl<T> Chain<T>
 where
-    T: Eq + Hash + Clone,
+    T: Eq + Hash + Clone + std::fmt::Debug,
 {
     /// Creates an empty Chain.
     pub fn default(begin: T, end: T) -> Self {
@@ -67,7 +67,7 @@ where
 
 impl<T> Chain<T>
 where
-    T: Eq + Hash + Clone,
+    T: Eq + Hash + Clone + std::fmt::Debug,
 {
     /// Creates a new Chain from the given data.
     ///
@@ -163,6 +163,7 @@ where
             state.remove(0);
             state.push(next_word);
         }
+        println!("Generated state: {:?}", result);
         result
     }
 }
