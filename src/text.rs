@@ -4,6 +4,9 @@ use regex::Regex;
 const MOR: f32 = 0.7; // max overlap ratio
 const MOT: usize = 15; // max overlap total
 
+const BEGIN: &str = "___BEGIN__";
+const END: &str = "___END__";
+
 /// Options for generating text.
 #[derive(Debug)]
 pub struct TextOptions {
@@ -23,15 +26,25 @@ impl Default for TextOptions {
 }
 
 /// Text is the main structure for generating text based on a Markov model.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Text {
     reject: Option<Regex>,
     parsed_sentences: Vec<Vec<String>>,
     rejoined_text: String,
-    chain: Chain,
+    chain: Chain<String>,
 }
 
 impl Text {
+    /// Creates a default Text instance.
+    fn default() -> Self {
+        Self {
+            reject: None,
+            parsed_sentences: Vec::new(),
+            rejoined_text: String::new(),
+            chain: Chain::default(BEGIN.to_string(), END.to_string()),
+        }
+    }
+
     /// Validates the input sentence.
     fn sentence_input(&self, s: &str) -> bool {
         if s.trim().is_empty() {
@@ -91,7 +104,7 @@ impl Text {
             .map(|s| s.join(" "))
             .collect::<Vec<String>>()
             .join(" ");
-        text.chain = Chain::new(&text.parsed_sentences);
+        text.chain = Chain::new(&text.parsed_sentences, BEGIN.to_string(), END.to_string());
 
         text
     }
