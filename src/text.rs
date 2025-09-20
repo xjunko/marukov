@@ -1,8 +1,12 @@
 use crate::chain::Chain;
+use crate::vocab::Vocab;
 use regex::Regex;
 
 const MOR: f32 = 0.7; // max overlap ratio
 const MOT: usize = 15; // max overlap total
+
+const BEGIN: &str = "___BEGIN__";
+const END: &str = "___END__";
 
 /// Options for generating text.
 #[derive(Debug)]
@@ -23,15 +27,28 @@ impl Default for TextOptions {
 }
 
 /// Text is the main structure for generating text based on a Markov model.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Text {
     reject: Option<Regex>,
-    parsed_sentences: Vec<Vec<String>>,
+    parsed_sentences: Vec<Vec<u32>>,
     rejoined_text: String,
-    chain: Chain,
+    chain: Chain<u32>,
+    tokenizer: Vocab,
 }
 
 impl Text {
+    /// Creates a default Text instance.
+    /// Do **NOT** use this, use `Text::new` instead.
+    fn default() -> Self {
+        Self {
+            reject: None,
+            parsed_sentences: Vec::with_capacity(0),
+            rejoined_text: String::with_capacity(0),
+            chain: Chain::default(0, 0),
+            tokenizer: Vocab::new(),
+        }
+    }
+
     /// Validates the input sentence.
     fn sentence_input(&self, s: &str) -> bool {
         if s.trim().is_empty() {
@@ -66,17 +83,34 @@ impl Text {
     }
 
     /// Parses the input data into sentences.
-    fn parse(&self, data: String) -> Vec<Vec<String>> {
-        data.split("\n")
+    fn parse(&mut self, data: String) -> (Vec<Vec<u32>>, String) {
+        let sentences: Vec<&str> = data
+            .split("\n")
             .filter(|s| self.sentence_input(s))
-            .map(|s| s.split_whitespace().map(|w| w.to_string()).collect())
-            .collect()
+            .collect();
+
+        let rejoined = sentences
+            .iter()
+            .map(|s| *s)
+            .collect::<Vec<&str>>()
+            .join(" ");
+
+        (
+            sentences
+                .into_iter()
+                .map(|s| {
+                    s.split_whitespace()
+                        .map(|w| self.tokenizer.to_token(w))
+                        .collect()
+                })
+                .collect(),
+            rejoined,
+        )
     }
 }
 
 impl Text {
     /// Creates a new Text instance from the given data.
-    ///
     /// # Arguments
     /// * `data` - A string containing the text data to be processed.
     /// # Returns
@@ -84,36 +118,37 @@ impl Text {
     pub fn new(data: String) -> Self {
         let mut text = Text::default();
         text.reject = Regex::new(&format!(r"(^')|('$)|\s'|'\s|[\{}(\(\)\[\])]", '"')).ok();
-        text.parsed_sentences = text.parse(data);
-        text.rejoined_text = text
-            .parsed_sentences
-            .iter()
-            .map(|s| s.join(" "))
-            .collect::<Vec<String>>()
-            .join(" ");
-        text.chain = Chain::new(&text.parsed_sentences);
-
+        (text.parsed_sentences, text.rejoined_text) = text.parse(data);
+        text.chain = Chain::new(
+            &text.parsed_sentences,
+            text.tokenizer.to_token(BEGIN),
+            text.tokenizer.to_token(END),
+        );
         text
     }
 
     /// Generates text based on the Markov model and the provided options.
-    ///
     /// # Arguments
     /// * `options` - A `TextOptions` struct containing parameters for text generation.
     /// # Returns
     /// A string containing the generated text.
     pub fn generate(&self, options: TextOptions) -> String {
         for _ in 0..options.tries {
-            let words: Vec<String> = self.chain.generate(None);
-            if words.len() > options.max_words as usize || words.len() < options.min_words as usize
+            let tokens: Vec<u32> = self.chain.generate(None);
+            if tokens.len() > options.max_words as usize
+                || tokens.len() < options.min_words as usize
             {
                 continue;
             }
+            let words: Vec<String> = tokens
+                .iter()
+                .map(|&token| self.tokenizer.to_word(token).to_string())
+                .collect();
+
             if self.verify(&words, MOR, MOT) {
                 return words.join(" ");
             }
         }
-
-        String::new()
+        String::with_capacity(0)
     }
 }

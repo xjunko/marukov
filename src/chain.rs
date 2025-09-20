@@ -1,25 +1,42 @@
 use std::collections::HashMap;
+use std::hash::Hash;
 
 use rand::Rng;
 
-const BEGIN: &str = "___BEGIN__";
-const END: &str = "___END__";
-
 const STATE_SIZE: usize = 2;
 
-type State = Vec<String>;
-type Weight = HashMap<String, i32>;
-type Model = HashMap<State, Weight>;
+type State<T> = Vec<T>;
+type Weight<T> = HashMap<T, i32>;
+type Model<T> = HashMap<State<T>, Weight<T>>;
 
 /// Chain is used internally to generate text based on a Markov model.
-#[derive(Debug, Default)]
-pub struct Chain {
-    model: Model,
-    begin_choices: Vec<String>,
+#[derive(Debug)]
+pub struct Chain<T>
+where
+    T: Eq + Hash + Clone + std::fmt::Debug,
+{
+    token_begin: T,
+    token_end: T,
+    model: Model<T>,
+    begin_choices: Vec<T>,
     begin_weights: Vec<i32>,
 }
 
-impl Chain {
+impl<T> Chain<T>
+where
+    T: Eq + Hash + Clone + std::fmt::Debug,
+{
+    /// Creates an empty Chain.
+    pub fn default(begin: T, end: T) -> Self {
+        Self {
+            token_begin: begin,
+            token_end: end,
+            model: Model::new(),
+            begin_choices: Vec::new(),
+            begin_weights: Vec::new(),
+        }
+    }
+
     /// Accumulate a list of integers into a cumulative distribution.
     fn accumulate(ns: &[i32]) -> Vec<i32> {
         let mut numbers: Vec<i32> = Vec::with_capacity(ns.len());
@@ -32,15 +49,15 @@ impl Chain {
     }
 
     /// Compile the next possible words and their cumulative weights.
-    fn compile_next(data: &Weight) -> (Vec<String>, Vec<i32>) {
-        let words: Vec<String> = data.keys().cloned().collect();
+    fn compile_next(data: &Weight<T>) -> (Vec<T>, Vec<i32>) {
+        let words: Vec<T> = data.keys().cloned().collect();
         let weights: Vec<i32> = data.values().cloned().collect();
         let cum: Vec<i32> = Self::accumulate(&weights);
         (words, cum)
     }
 
     /// Refer to python's `bisect.bisect`, this is more or less the same.
-    fn bisect_right<T: Ord>(slice: &[T], x: &T) -> usize {
+    fn bisect_right<X: Ord>(slice: &[X], x: &X) -> usize {
         match slice.binary_search(x) {
             Ok(idx) => idx + 1,
             Err(idx) => idx,
@@ -48,40 +65,39 @@ impl Chain {
     }
 }
 
-impl Chain {
+impl<T> Chain<T>
+where
+    T: Eq + Hash + Clone + std::fmt::Debug,
+{
     /// Creates a new Chain from the given data.
-    ///
     /// # Arguments
     /// * `data` - A reference to a slice of vectors of strings, where each vector represents a sequence of words.
     /// # Returns
     /// A new instance of `Chain`.
-    pub fn new(data: &[Vec<String>]) -> Self {
-        let mut chain = Self::default();
+    pub fn new(data: &[Vec<T>], begin: T, end: T) -> Self {
+        let mut chain = Self::default(begin, end);
         chain.model = chain.build(data);
         chain.compute();
         chain
     }
 
     /// Builds the Markov model from the provided data.
-    fn build(&self, data: &[Vec<String>]) -> Model {
-        let mut model: Model = HashMap::new();
+    fn build(&self, data: &[Vec<T>]) -> Model<T> {
+        let mut model: Model<T> = HashMap::new();
 
         for run in data {
-            let mut items: Vec<&str> = vec![BEGIN; STATE_SIZE];
-            items.extend(run.iter().map(|s| s.as_str()));
-            items.push(END);
+            let mut items: Vec<&T> = vec![&self.token_begin; STATE_SIZE];
+            items.extend(run);
+            items.push(&self.token_end);
 
             for i in 0..run.len() + 1 {
-                let state: State = items[i..i + STATE_SIZE]
-                    .iter()
-                    .map(|s| (*s).to_string())
-                    .collect::<Vec<String>>();
-                let follow: &str = items[i + STATE_SIZE];
+                let state: State<T> = items[i..i + STATE_SIZE].iter().cloned().cloned().collect();
+                let follow: &T = items[i + STATE_SIZE];
 
                 model
                     .entry(state)
                     .or_insert_with(HashMap::new)
-                    .entry(follow.to_string())
+                    .entry(follow.clone())
                     .and_modify(|e| *e += 1)
                     .or_insert(1);
             }
@@ -91,8 +107,8 @@ impl Chain {
     }
 
     /// Returns the initial state of the Markov chain.
-    fn begin_state(&self) -> State {
-        vec![BEGIN.to_string(); STATE_SIZE]
+    fn begin_state(&self) -> State<T> {
+        vec![self.token_begin.clone(); STATE_SIZE]
     }
 
     /// Precomputes the choices and weights for the initial state.
@@ -106,12 +122,11 @@ impl Chain {
     }
 
     /// Moves to the next state based on the current state.
-    ///
     /// # Arguments
     /// * `state` - A reference to the current state of the Markov chain.
     /// # Returns
-    /// A string representing the next word in the sequence.
-    pub fn next(&self, state: &State) -> String {
+    /// A <T> representing the next token in the sequence.
+    pub fn next(&self, state: &State<T>) -> T {
         let (mut choices, mut cumdist) = (self.begin_choices.clone(), self.begin_weights.clone());
         if state != &self.begin_state() {
             // FIXME: This is bad
@@ -134,12 +149,12 @@ impl Chain {
     /// * `init_state` - An optional initial state to start the generation from.
     /// # Returns
     /// A vector of strings representing the generated sequence of words.
-    pub fn generate(&self, init_state: Option<State>) -> Vec<String> {
+    pub fn generate(&self, init_state: Option<State<T>>) -> Vec<T> {
         let mut state = init_state.unwrap_or(self.begin_state());
-        let mut result: Vec<String> = Vec::new();
+        let mut result: Vec<T> = Vec::new();
         loop {
-            let next_word: String = self.next(&state);
-            if next_word == END {
+            let next_word: T = self.next(&state);
+            if next_word == self.token_end {
                 break;
             }
             result.push(next_word.clone());
