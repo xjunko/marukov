@@ -89,11 +89,7 @@ impl Text {
             .filter(|s| self.sentence_input(s))
             .collect();
 
-        let rejoined = sentences
-            .iter()
-            .map(|s| *s)
-            .collect::<Vec<&str>>()
-            .join(" ");
+        let rejoined = sentences.to_vec().join(" ");
 
         (
             sentences

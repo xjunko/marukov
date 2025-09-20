@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Vocab {
     word_to_id: HashMap<String, u32>,
     id_to_word: Vec<String>,
@@ -8,10 +8,7 @@ pub struct Vocab {
 
 impl Vocab {
     pub fn new() -> Self {
-        Self {
-            word_to_id: HashMap::new(),
-            id_to_word: Vec::new(),
-        }
+        Self::default()
     }
 
     pub fn to_token(&mut self, word: &str) -> u32 {

@@ -96,7 +96,7 @@ where
 
                 model
                     .entry(state)
-                    .or_insert_with(HashMap::new)
+                    .or_default()
                     .entry(follow.clone())
                     .and_modify(|e| *e += 1)
                     .or_insert(1);
