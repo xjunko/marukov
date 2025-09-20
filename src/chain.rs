@@ -15,9 +15,9 @@ pub struct Chain<T>
 where
     T: Eq + Hash + Clone + std::fmt::Debug,
 {
-    model: Model<T>,
     token_begin: T,
     token_end: T,
+    model: Model<T>,
     begin_choices: Vec<T>,
     begin_weights: Vec<i32>,
 }
@@ -29,9 +29,9 @@ where
     /// Creates an empty Chain.
     pub fn default(begin: T, end: T) -> Self {
         Self {
-            model: HashMap::new(),
             token_begin: begin,
             token_end: end,
+            model: Model::new(),
             begin_choices: Vec::new(),
             begin_weights: Vec::new(),
         }
@@ -70,7 +70,6 @@ where
     T: Eq + Hash + Clone + std::fmt::Debug,
 {
     /// Creates a new Chain from the given data.
-    ///
     /// # Arguments
     /// * `data` - A reference to a slice of vectors of strings, where each vector represents a sequence of words.
     /// # Returns
@@ -123,7 +122,6 @@ where
     }
 
     /// Moves to the next state based on the current state.
-    ///
     /// # Arguments
     /// * `state` - A reference to the current state of the Markov chain.
     /// # Returns

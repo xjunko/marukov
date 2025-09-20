@@ -38,14 +38,14 @@ pub struct Text {
 
 impl Text {
     /// Creates a default Text instance.
+    /// Do **NOT** use this, use `Text::new` instead.
     fn default() -> Self {
-        let mut tokenizer = Vocab::new();
         Self {
             reject: None,
-            parsed_sentences: Vec::new(),
-            rejoined_text: String::new(),
-            chain: Chain::default(tokenizer.get_or_insert(BEGIN), tokenizer.get_or_insert(END)),
-            tokenizer,
+            parsed_sentences: Vec::with_capacity(0),
+            rejoined_text: String::with_capacity(0),
+            chain: Chain::default(0, 0),
+            tokenizer: Vocab::new(),
         }
     }
 
@@ -100,7 +100,7 @@ impl Text {
                 .into_iter()
                 .map(|s| {
                     s.split_whitespace()
-                        .map(|w| self.tokenizer.get_or_insert(w))
+                        .map(|w| self.tokenizer.to_token(w))
                         .collect()
                 })
                 .collect(),
@@ -111,7 +111,6 @@ impl Text {
 
 impl Text {
     /// Creates a new Text instance from the given data.
-    ///
     /// # Arguments
     /// * `data` - A string containing the text data to be processed.
     /// # Returns
@@ -122,15 +121,13 @@ impl Text {
         (text.parsed_sentences, text.rejoined_text) = text.parse(data);
         text.chain = Chain::new(
             &text.parsed_sentences,
-            text.tokenizer.get_or_insert(BEGIN),
-            text.tokenizer.get_or_insert(END),
+            text.tokenizer.to_token(BEGIN),
+            text.tokenizer.to_token(END),
         );
-
         text
     }
 
     /// Generates text based on the Markov model and the provided options.
-    ///
     /// # Arguments
     /// * `options` - A `TextOptions` struct containing parameters for text generation.
     /// # Returns
@@ -143,16 +140,15 @@ impl Text {
             {
                 continue;
             }
-            let words = tokens
+            let words: Vec<String> = tokens
                 .iter()
-                .map(|&id| self.tokenizer.id_to_word[id as usize].clone())
-                .collect::<Vec<String>>();
+                .map(|&token| self.tokenizer.to_word(token).to_string())
+                .collect();
 
             if self.verify(&words, MOR, MOT) {
                 return words.join(" ");
             }
         }
-
-        String::new()
+        String::with_capacity(0)
     }
 }
