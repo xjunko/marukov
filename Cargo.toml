@@ -6,7 +6,7 @@ repository = "https://github.com/xjunko/marukov"
 readme = "README.md"
 license = "MIT"
 authors = ["xjunko <phony@kafu.ovh>"]
-version = "0.0.1"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
