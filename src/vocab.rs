@@ -6,6 +6,12 @@ pub struct Vocab {
     id_to_word: Vec<String>,
 }
 
+impl Default for Vocab {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Vocab {
     /// Creates a new, empty vocabulary.
     pub fn new() -> Self {
