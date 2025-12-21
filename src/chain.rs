@@ -3,11 +3,11 @@ use std::hash::Hash;
 
 use rand::Rng;
 
-const STATE_SIZE: usize = 2;
+pub const STATE_SIZE: usize = 2;
 
-type State<T> = Vec<T>;
-type Weight<T> = HashMap<T, i32>;
-type Model<T> = HashMap<State<T>, Weight<T>>;
+pub type State<T> = Vec<T>;
+pub type Weight<T> = HashMap<T, i32>;
+pub type Model<T> = HashMap<State<T>, Weight<T>>;
 
 /// Chain is used internally to generate text based on a Markov model.
 #[derive(Debug)]
@@ -96,7 +96,7 @@ where
 
                 model
                     .entry(state)
-                    .or_insert_with(HashMap::new)
+                    .or_default()
                     .entry(follow.clone())
                     .and_modify(|e| *e += 1)
                     .or_insert(1);
@@ -152,6 +152,7 @@ where
     pub fn generate(&self, init_state: Option<State<T>>) -> Vec<T> {
         let mut state = init_state.unwrap_or(self.begin_state());
         let mut result: Vec<T> = Vec::new();
+
         loop {
             let next_word: T = self.next(&state);
             if next_word == self.token_end {
@@ -162,5 +163,19 @@ where
             state.push(next_word);
         }
         result
+    }
+
+    /// Finds an initial state containing the specified start token.
+    /// # Arguments
+    /// * `start` - The token to search for in the initial states.
+    /// # Returns
+    /// An optional vector of states containing the start token.
+    pub fn find_init_states(&self, start: T) -> Option<Vec<State<T>>> {
+        self.model
+            .keys()
+            .filter(|state| state.contains(&start))
+            .cloned()
+            .collect::<Vec<State<T>>>()
+            .into()
     }
 }
