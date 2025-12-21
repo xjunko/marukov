@@ -1,5 +1,8 @@
 use crate::chain::Chain;
+use crate::chain::State;
 use crate::vocab::Vocab;
+
+use rand::seq::SliceRandom;
 use regex::Regex;
 
 const MOR: f32 = 0.7; // max overlap ratio
@@ -9,11 +12,12 @@ const BEGIN: &str = "___BEGIN__";
 const END: &str = "___END__";
 
 /// Options for generating text.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TextOptions {
     pub tries: i32,
     pub min_words: i32,
     pub max_words: i32,
+    pub init_state: Option<State<u32>>,
 }
 
 impl Default for TextOptions {
@@ -22,6 +26,7 @@ impl Default for TextOptions {
             tries: 999,
             min_words: 0,
             max_words: 100,
+            init_state: None,
         }
     }
 }
@@ -89,11 +94,7 @@ impl Text {
             .filter(|s| self.sentence_input(s))
             .collect();
 
-        let rejoined = sentences
-            .iter()
-            .map(|s| *s)
-            .collect::<Vec<&str>>()
-            .join(" ");
+        let rejoined = sentences.to_vec().join(" ");
 
         (
             sentences
@@ -131,24 +132,54 @@ impl Text {
     /// # Arguments
     /// * `options` - A `TextOptions` struct containing parameters for text generation.
     /// # Returns
-    /// A string containing the generated text.
-    pub fn generate(&self, options: TextOptions) -> String {
+    /// An optional string containing the generated text.
+    pub fn generate(&self, options: TextOptions) -> Option<String> {
         for _ in 0..options.tries {
-            let tokens: Vec<u32> = self.chain.generate(None);
+            let tokens: Vec<u32> = self.chain.generate(options.init_state.clone());
             if tokens.len() > options.max_words as usize
                 || tokens.len() < options.min_words as usize
             {
                 continue;
             }
+
             let words: Vec<String> = tokens
                 .iter()
                 .map(|&token| self.tokenizer.to_word(token).to_string())
                 .collect();
 
             if self.verify(&words, MOR, MOT) {
-                return words.join(" ");
+                return Some(words.join(" "));
             }
         }
-        String::with_capacity(0)
+
+        None
+    }
+
+    /// Generates text starting with a specific word.
+    /// # Arguments
+    /// * `start` - The starting word for the generated text.
+    /// * `options` - A `TextOptions` struct containing parameters for text generation.
+    /// # Returns
+    /// An optional string containing the generated text.
+    pub fn generate_with_start(&self, start: &str, options: TextOptions) -> Option<String> {
+        if let Some(token) = self.tokenizer.to_token_opt(start)
+            && let Some(mut init_states) = self.chain.find_init_states(token)
+        {
+            let mut rng = rand::rng();
+            init_states.shuffle(&mut rng);
+
+            for init_state in init_states {
+                let mut opts = options.clone();
+                opts.init_state = Some(init_state);
+
+                if let Some(generated) = self.generate(opts)
+                    && !generated.is_empty()
+                {
+                    return Some(format!("{} {}", start, generated));
+                }
+            }
+        }
+
+        None
     }
 }
